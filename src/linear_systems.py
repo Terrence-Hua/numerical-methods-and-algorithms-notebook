@@ -1,4 +1,4 @@
-"""Linear system solvers: LU (partial pivoting), QR (Householder), Conjugate Gradient."""
+"""Linear system solvers: LU (partial pivoting), QR (Householder), CG, Cholesky."""
 
 from __future__ import annotations
 
@@ -213,3 +213,69 @@ def conjugate_gradient(
         residuals.append(float(np.linalg.norm(r)))
 
     return x, residuals
+
+
+# ---------------------------------------------------------------------------
+# Cholesky decomposition (for symmetric positive-definite matrices)
+# ---------------------------------------------------------------------------
+
+
+def cholesky_decompose(A: np.ndarray) -> np.ndarray:
+    """Factor a symmetric positive-definite matrix as A = L L^T.
+
+    Uses the outer-product form (Cholesky-Banachiewicz algorithm).
+
+    Args:
+        A: Symmetric positive-definite matrix, shape (n, n).
+
+    Returns:
+        L: Lower-triangular matrix such that L @ L.T == A.
+
+    Raises:
+        ValueError: If A is not square.
+        np.linalg.LinAlgError: If A is not positive-definite.
+    """
+    A = np.array(A, dtype=float)
+    n, m = A.shape
+    if n != m:
+        raise ValueError(f"A must be square; got shape {A.shape}")
+
+    L = np.zeros_like(A)
+    for i in range(n):
+        for j in range(i + 1):
+            s = A[i, j] - L[i, :j] @ L[j, :j]
+            if i == j:
+                if s <= 0.0:
+                    raise np.linalg.LinAlgError(
+                        "Matrix is not positive-definite"
+                    )
+                L[i, j] = np.sqrt(s)
+            else:
+                L[i, j] = s / L[j, j]
+
+    return L
+
+
+def cholesky_solve(L: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Solve A x = b given the Cholesky factor L where A = L L^T.
+
+    Args:
+        L: Lower-triangular Cholesky factor, shape (n, n).
+        b: Right-hand side vector, shape (n,).
+
+    Returns:
+        Solution vector x of shape (n,).
+    """
+    n = len(b)
+
+    # Forward substitution: L y = b
+    y = np.zeros(n)
+    for i in range(n):
+        y[i] = (b[i] - L[i, :i] @ y[:i]) / L[i, i]
+
+    # Back substitution: L^T x = y
+    x = np.zeros(n)
+    for i in range(n - 1, -1, -1):
+        x[i] = (y[i] - L[i + 1 :, i] @ x[i + 1 :]) / L[i, i]
+
+    return x
