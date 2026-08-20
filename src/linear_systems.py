@@ -215,6 +215,65 @@ def conjugate_gradient(
     return x, residuals
 
 
+def preconditioned_cg(
+    A: np.ndarray,
+    b: np.ndarray,
+    M_inv: np.ndarray | None = None,
+    x0: np.ndarray | None = None,
+    tol: float = 1e-10,
+    max_iter: int | None = None,
+) -> tuple[np.ndarray, list[float]]:
+    """Solve A x = b via Preconditioned Conjugate Gradient (PCG).
+
+    Uses the left preconditioner M^{-1} to accelerate convergence. With M = A
+    this solves in one step; with M = I it reduces to standard CG. A common
+    practical choice is M = diag(A) (Jacobi preconditioner).
+
+    Args:
+        A: Symmetric positive-definite matrix, shape (n, n).
+        b: Right-hand side vector, shape (n,).
+        M_inv: Inverse of the preconditioner matrix (n, n). Defaults to I
+               (i.e., standard CG).
+        x0: Initial guess; defaults to zero vector.
+        tol: Convergence tolerance on the residual norm ||r||_2.
+        max_iter: Maximum iterations; defaults to n.
+
+    Returns:
+        (x, residuals) where x is the solution and residuals[i] = ||r_i||_2.
+    """
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float)
+    n = len(b)
+
+    if max_iter is None:
+        max_iter = n
+    if M_inv is None:
+        M_inv = np.eye(n)
+
+    x = np.zeros(n) if x0 is None else np.array(x0, dtype=float)
+    r = b - A @ x
+    z = M_inv @ r
+    p = z.copy()
+    rz = float(r @ z)
+    residuals: list[float] = [float(np.linalg.norm(r))]
+
+    for _ in range(max_iter):
+        if residuals[-1] < tol:
+            break
+        Ap = A @ p
+        alpha = rz / float(p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        residuals.append(float(np.linalg.norm(r)))
+        z = M_inv @ r
+        rz_new = float(r @ z)
+        beta = rz_new / rz
+        p = z + beta * p
+        rz = rz_new
+
+    return x, residuals
+
+
 # ---------------------------------------------------------------------------
 # Cholesky decomposition (for symmetric positive-definite matrices)
 # ---------------------------------------------------------------------------
